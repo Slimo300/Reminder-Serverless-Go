@@ -1,0 +1,7 @@
+go 1.22.0
+
+use (
+	.
+	./lambdas/alarm-creator
+	./lambdas/post-confirmation-trigger
+)
