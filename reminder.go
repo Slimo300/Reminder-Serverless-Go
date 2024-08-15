@@ -86,7 +86,11 @@ func NewAlerterStack(scope constructs.Construct, id string, props *AlerterStackP
 	alertsTable := awsdynamodb.NewTable(stack, jsii.String("GO_AlarmTable"), &awsdynamodb.TableProps{
 		TableName: jsii.String("GO_AlarmTable"),
 		PartitionKey: &awsdynamodb.Attribute{
-			Name: jsii.String("eventID"),
+			Name: jsii.String("UserID"),
+			Type: awsdynamodb.AttributeType_STRING,
+		},
+		SortKey: &awsdynamodb.Attribute{
+			Name: jsii.String("EventID"),
 			Type: awsdynamodb.AttributeType_STRING,
 		},
 		RemovalPolicy: awscdk.RemovalPolicy_DESTROY,
@@ -94,11 +98,41 @@ func NewAlerterStack(scope constructs.Construct, id string, props *AlerterStackP
 
 	// Creating Lambda functions and adding permissions to them
 
+	// Creating Alarm Executor Function
+	alarmExecutorLambda := golambda.NewGoFunction(stack, jsii.String("GO_AlarmExecutor"), &golambda.GoFunctionProps{
+		FunctionName: jsii.String("GO_AlarmExecutor"),
+		Entry:        jsii.String("lambdas/alarm-executor"),
+		Runtime:      awslambda.Runtime_PROVIDED_AL2(),
+		Architecture: awslambda.Architecture_ARM_64(),
+		Environment: &map[string]*string{
+			"SNS_TOPIC_ARN": snsTopic.TopicArn(),
+		},
+	})
+	alarmExecutorLambda.AddToRolePolicy(awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
+		Actions:   jsii.Strings("sns:Publish"),
+		Resources: jsii.Strings(*snsTopic.TopicArn()),
+	}))
+
+	lambdaExecutorInvokeRole := awsiam.NewRole(stack, jsii.String("GO_AlarmExecutorInvokeRole"), &awsiam.RoleProps{
+		RoleName:  jsii.String("GO_AlarmExecutorInvokeRole"),
+		AssumedBy: awsiam.NewServicePrincipal(jsii.String("scheduler.amazonaws.com"), nil),
+	})
+	lambdaExecutorInvokeRole.AddToPolicy(awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
+		Actions:   jsii.Strings("lambda:InvokeFunction"),
+		Resources: jsii.Strings(*alarmExecutorLambda.FunctionArn()),
+	}))
+
+	// Alarm Creator Function
 	alarmCreatorLambda := golambda.NewGoFunction(stack, jsii.String("GO_AlarmCreator"), &golambda.GoFunctionProps{
 		FunctionName: jsii.String("GO_AlarmCreator"),
 		Entry:        jsii.String("lambdas/alarm-creator"),
 		Runtime:      awslambda.Runtime_PROVIDED_AL2(),
 		Architecture: awslambda.Architecture_ARM_64(),
+		Environment: &map[string]*string{
+			"DYNAMO_TABLE_NAME":   alertsTable.TableArn(),
+			"LAMBDA_FUNCTION_ARN": alarmExecutorLambda.FunctionArn(),
+			"ROLE_ARN":            lambdaExecutorInvokeRole.RoleArn(),
+		},
 	})
 	alarmCreatorLambda.AddToRolePolicy(awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
 		Actions:   jsii.Strings("dynamodb:PutItem"),
@@ -108,7 +142,46 @@ func NewAlerterStack(scope constructs.Construct, id string, props *AlerterStackP
 		Actions:   jsii.Strings("scheduler:CreateSchedule"),
 		Resources: jsii.Strings("*"),
 	}))
+	alarmCreatorLambda.AddToRolePolicy(awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
+		Actions:   jsii.Strings("iam:PassRole"),
+		Resources: jsii.Strings(*lambdaExecutorInvokeRole.RoleArn()),
+	}))
 
+	// Alarm Getter Function
+	alarmGetterLambda := golambda.NewGoFunction(stack, jsii.String("GO_AlarmGetter"), &golambda.GoFunctionProps{
+		FunctionName: jsii.String("GO_AlarmGetter"),
+		Entry:        jsii.String("lambdas/alarm-getter"),
+		Runtime:      awslambda.Runtime_PROVIDED_AL2(),
+		Architecture: awslambda.Architecture_ARM_64(),
+		Environment: &map[string]*string{
+			"DYNAMO_TABLE_NAME": alertsTable.TableName(),
+		},
+	})
+	alarmGetterLambda.AddToRolePolicy(awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
+		Actions:   jsii.Strings("dynamodb:Query"),
+		Resources: jsii.Strings(*alertsTable.TableArn()),
+	}))
+
+	// Alarm Deleter Function
+	alarmDeleterLambda := golambda.NewGoFunction(stack, jsii.String("GO_AlarmDeleter"), &golambda.GoFunctionProps{
+		FunctionName: jsii.String("GO_AlarmDeleter"),
+		Entry:        jsii.String("lambdas/alarm-deleter"),
+		Runtime:      awslambda.Runtime_PROVIDED_AL2(),
+		Architecture: awslambda.Architecture_ARM_64(),
+		Environment: &map[string]*string{
+			"DYNAMO_TABLE_NAME": alertsTable.TableName(),
+		},
+	})
+	alarmDeleterLambda.AddToRolePolicy(awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
+		Actions:   jsii.Strings("dynamodb:GetItem", "dynamodb:DeleteItem"),
+		Resources: jsii.Strings(*alertsTable.TableArn()),
+	}))
+	alarmDeleterLambda.AddToRolePolicy(awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
+		Actions:   jsii.Strings("scheduler:DeleteSchedule"),
+		Resources: jsii.Strings("*"),
+	}))
+
+	// Defining Rest API in API Gateway
 	myGateway := awsapigateway.NewRestApi(stack, jsii.String("GO_RestApi"), &awsapigateway.RestApiProps{
 		DefaultCorsPreflightOptions: &awsapigateway.CorsOptions{
 			AllowOrigins: &[]*string{jsii.String("*")},
@@ -117,14 +190,27 @@ func NewAlerterStack(scope constructs.Construct, id string, props *AlerterStackP
 		RestApiName: jsii.String("GO_RestApi"),
 	})
 
-	integration := awsapigateway.NewLambdaIntegration(alarmCreatorLambda, nil)
+	cognitoAuthorizer := awsapigateway.NewCognitoUserPoolsAuthorizer(stack, jsii.String("GO_Authorizer"), &awsapigateway.CognitoUserPoolsAuthorizerProps{
+		CognitoUserPools: &[]awscognito.IUserPool{userPool},
+	})
+
+	alarmCreatorIntegration := awsapigateway.NewLambdaIntegration(alarmCreatorLambda, nil)
+	alarmGetterIntegration := awsapigateway.NewLambdaIntegration(alarmGetterLambda, nil)
+	alarmDeleterIntegration := awsapigateway.NewLambdaIntegration(alarmDeleterLambda, nil)
 
 	alarmsResource := myGateway.Root().AddResource(jsii.String("alarms"), nil)
-	alarmsResource.AddMethod(jsii.String("POST"), integration, &awsapigateway.MethodOptions{
+	alarmsResource.AddMethod(jsii.String("POST"), alarmCreatorIntegration, &awsapigateway.MethodOptions{
 		AuthorizationType: awsapigateway.AuthorizationType_COGNITO,
-		Authorizer: awsapigateway.NewCognitoUserPoolsAuthorizer(stack, jsii.String("GO_Authorizer"), &awsapigateway.CognitoUserPoolsAuthorizerProps{
-			CognitoUserPools: &[]awscognito.IUserPool{userPool},
-		}),
+		Authorizer:        cognitoAuthorizer,
+	})
+	alarmsResource.AddMethod(jsii.String("GET"), alarmGetterIntegration, &awsapigateway.MethodOptions{
+		AuthorizationType: awsapigateway.AuthorizationType_COGNITO,
+		Authorizer:        cognitoAuthorizer,
+	})
+	alarmIDResource := alarmsResource.AddResource(jsii.String("{id}"), nil)
+	alarmIDResource.AddMethod(jsii.String("DELETE"), alarmDeleterIntegration, &awsapigateway.MethodOptions{
+		AuthorizationType: awsapigateway.AuthorizationType_COGNITO,
+		Authorizer:        cognitoAuthorizer,
 	})
 
 	return stack

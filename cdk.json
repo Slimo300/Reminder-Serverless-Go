@@ -1,5 +1,5 @@
 {
-  "app": "go mod download && go run alerter.go",
+  "app": "go mod download && go run reminder.go",
   "watch": {
     "include": [
       "**"

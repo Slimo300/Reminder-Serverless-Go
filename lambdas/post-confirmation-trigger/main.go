@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
@@ -8,15 +9,16 @@ import (
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/cognitoidentityprovider"
-	"github.com/aws/aws-sdk-go/service/sns"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider"
+	cognitotypes "github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider/types"
+	"github.com/aws/aws-sdk-go-v2/service/sns"
 )
 
 var (
-	snsClient     *sns.SNS
-	cognitoClient *cognitoidentityprovider.CognitoIdentityProvider
+	snsClient     *sns.Client
+	cognitoClient *cognitoidentityprovider.Client
 )
 
 func Handler(event events.CognitoEventUserPoolsPostConfirmation) (events.CognitoEventUserPoolsPostConfirmation, error) {
@@ -35,24 +37,24 @@ func Handler(event events.CognitoEventUserPoolsPostConfirmation) (events.Cognito
 		return event, err
 	}
 
-	subResponse, err := snsClient.Subscribe(&sns.SubscribeInput{
+	subResponse, err := snsClient.Subscribe(context.Background(), &sns.SubscribeInput{
 		TopicArn: aws.String(os.Getenv("SNS_TOPIC_ARN")),
 		Protocol: aws.String("sms"),
 		Endpoint: aws.String(phoneNumber),
-		Attributes: map[string]*string{
-			"FilterPolicy": aws.String(string(filterPolicy)),
+		Attributes: map[string]string{
+			"FilterPolicy": string(filterPolicy),
 		},
-		ReturnSubscriptionArn: aws.Bool(true),
+		ReturnSubscriptionArn: true,
 	})
 	if err != nil {
 		log.Println(err.Error())
 		return event, err
 	}
 
-	if _, err := cognitoClient.AdminUpdateUserAttributes(&cognitoidentityprovider.AdminUpdateUserAttributesInput{
+	if _, err := cognitoClient.AdminUpdateUserAttributes(context.Background(), &cognitoidentityprovider.AdminUpdateUserAttributesInput{
 		UserPoolId: aws.String(event.UserPoolID),
 		Username:   &event.UserName,
-		UserAttributes: []*cognitoidentityprovider.AttributeType{{
+		UserAttributes: []cognitotypes.AttributeType{{
 			Name:  aws.String("custom:subscription_arn"),
 			Value: subResponse.SubscriptionArn,
 		}},
@@ -66,10 +68,14 @@ func Handler(event events.CognitoEventUserPoolsPostConfirmation) (events.Cognito
 
 func main() {
 
-	awsSession := session.Must(session.NewSession(aws.NewConfig()))
+	cfg, err := config.LoadDefaultConfig(context.Background())
+	if err != nil {
+		log.Println(err)
+		return
+	}
 
-	snsClient = sns.New(awsSession)
-	cognitoClient = cognitoidentityprovider.New(awsSession)
+	snsClient = sns.NewFromConfig(cfg)
+	cognitoClient = cognitoidentityprovider.NewFromConfig(cfg)
 
 	lambda.Start(Handler)
 }

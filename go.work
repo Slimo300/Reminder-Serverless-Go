@@ -3,5 +3,8 @@ go 1.22.0
 use (
 	.
 	./lambdas/alarm-creator
+	./lambdas/alarm-getter
+	./lambdas/alarm-deleter
+	./lambdas/alarm-executor
 	./lambdas/post-confirmation-trigger
 )
