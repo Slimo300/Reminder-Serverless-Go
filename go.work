@@ -6,5 +6,7 @@ use (
 	./lambdas/alarm-getter
 	./lambdas/alarm-deleter
 	./lambdas/alarm-executor
+	./lambdas/phone-modifer
+	./lambdas/phone-verifier
 	./lambdas/post-confirmation-trigger
 )

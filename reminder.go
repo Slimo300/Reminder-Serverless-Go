@@ -81,9 +81,9 @@ func NewAlerterStack(scope constructs.Construct, id string, props *AlerterStackP
 
 	userPool.AddTrigger(awscognito.UserPoolOperation_POST_CONFIRMATION(), postConfirmationLambda, awscognito.LambdaVersion_V1_0)
 
-	// Creating DynamoDB Table
+	// Creating DynamoDB Alarms Table
 
-	alertsTable := awsdynamodb.NewTable(stack, jsii.String("GO_AlarmTable"), &awsdynamodb.TableProps{
+	alarmsTable := awsdynamodb.NewTable(stack, jsii.String("GO_AlarmTable"), &awsdynamodb.TableProps{
 		TableName: jsii.String("GO_AlarmTable"),
 		PartitionKey: &awsdynamodb.Attribute{
 			Name: jsii.String("UserID"),
@@ -94,6 +94,18 @@ func NewAlerterStack(scope constructs.Construct, id string, props *AlerterStackP
 			Type: awsdynamodb.AttributeType_STRING,
 		},
 		RemovalPolicy: awscdk.RemovalPolicy_DESTROY,
+	})
+
+	// Creating DynamoDB Verification Codes Table
+
+	codesTable := awsdynamodb.NewTable(stack, jsii.String("GO_CodesTable"), &awsdynamodb.TableProps{
+		TableName: jsii.String("GO_CodesTable"),
+		PartitionKey: &awsdynamodb.Attribute{
+			Name: jsii.String("UserID"),
+			Type: awsdynamodb.AttributeType_STRING,
+		},
+		TimeToLiveAttribute: jsii.String("ExpireOn"),
+		RemovalPolicy:       awscdk.RemovalPolicy_DESTROY,
 	})
 
 	// Creating Lambda functions and adding permissions to them
@@ -129,14 +141,14 @@ func NewAlerterStack(scope constructs.Construct, id string, props *AlerterStackP
 		Runtime:      awslambda.Runtime_PROVIDED_AL2(),
 		Architecture: awslambda.Architecture_ARM_64(),
 		Environment: &map[string]*string{
-			"DYNAMO_TABLE_NAME":   alertsTable.TableArn(),
+			"DYNAMO_TABLE_NAME":   alarmsTable.TableArn(),
 			"LAMBDA_FUNCTION_ARN": alarmExecutorLambda.FunctionArn(),
 			"ROLE_ARN":            lambdaExecutorInvokeRole.RoleArn(),
 		},
 	})
 	alarmCreatorLambda.AddToRolePolicy(awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
 		Actions:   jsii.Strings("dynamodb:PutItem"),
-		Resources: jsii.Strings(*alertsTable.TableArn()),
+		Resources: jsii.Strings(*alarmsTable.TableArn()),
 	}))
 	alarmCreatorLambda.AddToRolePolicy(awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
 		Actions:   jsii.Strings("scheduler:CreateSchedule"),
@@ -154,12 +166,12 @@ func NewAlerterStack(scope constructs.Construct, id string, props *AlerterStackP
 		Runtime:      awslambda.Runtime_PROVIDED_AL2(),
 		Architecture: awslambda.Architecture_ARM_64(),
 		Environment: &map[string]*string{
-			"DYNAMO_TABLE_NAME": alertsTable.TableName(),
+			"DYNAMO_TABLE_NAME": alarmsTable.TableName(),
 		},
 	})
 	alarmGetterLambda.AddToRolePolicy(awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
 		Actions:   jsii.Strings("dynamodb:Query"),
-		Resources: jsii.Strings(*alertsTable.TableArn()),
+		Resources: jsii.Strings(*alarmsTable.TableArn()),
 	}))
 
 	// Alarm Deleter Function
@@ -169,16 +181,60 @@ func NewAlerterStack(scope constructs.Construct, id string, props *AlerterStackP
 		Runtime:      awslambda.Runtime_PROVIDED_AL2(),
 		Architecture: awslambda.Architecture_ARM_64(),
 		Environment: &map[string]*string{
-			"DYNAMO_TABLE_NAME": alertsTable.TableName(),
+			"DYNAMO_TABLE_NAME": alarmsTable.TableName(),
 		},
 	})
 	alarmDeleterLambda.AddToRolePolicy(awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
 		Actions:   jsii.Strings("dynamodb:GetItem", "dynamodb:DeleteItem"),
-		Resources: jsii.Strings(*alertsTable.TableArn()),
+		Resources: jsii.Strings(*alarmsTable.TableArn()),
 	}))
 	alarmDeleterLambda.AddToRolePolicy(awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
 		Actions:   jsii.Strings("scheduler:DeleteSchedule"),
 		Resources: jsii.Strings("*"),
+	}))
+
+	// Phone Number Modifier Function
+	phoneModifierLambda := golambda.NewGoFunction(stack, jsii.String("GO_PhoneModifier"), &golambda.GoFunctionProps{
+		FunctionName: jsii.String("GO_PhoneModifier"),
+		Entry:        jsii.String("lambdas/phone-modifer"),
+		Runtime:      awslambda.Runtime_PROVIDED_AL2(),
+		Architecture: awslambda.Architecture_ARM_64(),
+		Environment: &map[string]*string{
+			"DYNAMO_TABLE_NAME": codesTable.TableArn(),
+		},
+	})
+	phoneModifierLambda.AddToRolePolicy(awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
+		Actions:   jsii.Strings("dynamodb:PutItem"),
+		Resources: jsii.Strings(*codesTable.TableArn()),
+	}))
+	phoneModifierLambda.AddToRolePolicy(awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
+		Actions:   jsii.Strings("sns:Publish"),
+		Resources: jsii.Strings("*"),
+	}))
+
+	// Phone Number Verifier Function
+	phoneVerifierLambda := golambda.NewGoFunction(stack, jsii.String("GO_PhoneVerifier"), &golambda.GoFunctionProps{
+		FunctionName: jsii.String("GO_PhoneVerifier"),
+		Entry:        jsii.String("lambdas/phone-verifier"),
+		Runtime:      awslambda.Runtime_PROVIDED_AL2(),
+		Architecture: awslambda.Architecture_ARM_64(),
+		Environment: &map[string]*string{
+			"DYNAMO_TABLE_NAME": codesTable.TableArn(),
+			"SNS_TOPIC_ARN":     snsTopic.TopicArn(),
+			"USER_POOL_ID":      userPool.UserPoolId(),
+		},
+	})
+	phoneVerifierLambda.AddToRolePolicy(awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
+		Actions:   jsii.Strings("dynamodb:GetItem", "dynamodb:DeleteItem"),
+		Resources: jsii.Strings(*codesTable.TableArn()),
+	}))
+	phoneVerifierLambda.AddToRolePolicy(awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
+		Actions:   jsii.Strings("sns:Subscribe", "sns:Unsubscribe"),
+		Resources: jsii.Strings(*snsTopic.TopicArn()),
+	}))
+	phoneVerifierLambda.AddToRolePolicy(awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
+		Actions:   jsii.Strings("cognito-idp:AdminUpdateUserAttributes"),
+		Resources: jsii.Strings(*userPool.UserPoolArn()),
 	}))
 
 	// Defining Rest API in API Gateway
@@ -197,6 +253,8 @@ func NewAlerterStack(scope constructs.Construct, id string, props *AlerterStackP
 	alarmCreatorIntegration := awsapigateway.NewLambdaIntegration(alarmCreatorLambda, nil)
 	alarmGetterIntegration := awsapigateway.NewLambdaIntegration(alarmGetterLambda, nil)
 	alarmDeleterIntegration := awsapigateway.NewLambdaIntegration(alarmDeleterLambda, nil)
+	phoneModifierIntegration := awsapigateway.NewLambdaIntegration(phoneModifierLambda, nil)
+	phoneVerifierIntegration := awsapigateway.NewLambdaIntegration(phoneVerifierLambda, nil)
 
 	alarmsResource := myGateway.Root().AddResource(jsii.String("alarms"), nil)
 	alarmsResource.AddMethod(jsii.String("POST"), alarmCreatorIntegration, &awsapigateway.MethodOptions{
@@ -209,6 +267,17 @@ func NewAlerterStack(scope constructs.Construct, id string, props *AlerterStackP
 	})
 	alarmIDResource := alarmsResource.AddResource(jsii.String("{id}"), nil)
 	alarmIDResource.AddMethod(jsii.String("DELETE"), alarmDeleterIntegration, &awsapigateway.MethodOptions{
+		AuthorizationType: awsapigateway.AuthorizationType_COGNITO,
+		Authorizer:        cognitoAuthorizer,
+	})
+
+	phoneModiferResource := myGateway.Root().AddResource(jsii.String("update-phone-number"), nil)
+	phoneModiferResource.AddMethod(jsii.String("POST"), phoneModifierIntegration, &awsapigateway.MethodOptions{
+		AuthorizationType: awsapigateway.AuthorizationType_COGNITO,
+		Authorizer:        cognitoAuthorizer,
+	})
+	phoneVeriferResource := myGateway.Root().AddResource(jsii.String("verify-phone-number"), nil)
+	phoneVeriferResource.AddMethod(jsii.String("POST"), phoneVerifierIntegration, &awsapigateway.MethodOptions{
 		AuthorizationType: awsapigateway.AuthorizationType_COGNITO,
 		Authorizer:        cognitoAuthorizer,
 	})
