@@ -1,13 +1,14 @@
-module github.com/Slimo300/Reminder-Serverless-Go/pkg/handlers/alarm-getter
+module github.com/Slimo300/Reminder-Serverless-Go/pkg/handlers/phone-verifier
 
 go 1.22.0
 
 require (
-	github.com/Slimo300/Reminder-Serverless-Go/pkg/features/dynamomapper v0.0.0-20240821140019-412a68fb5824
 	github.com/Slimo300/Reminder-Serverless-Go/pkg/features/errors v0.0.0-20240821145950-d2da7dbd1a33
 	github.com/aws/aws-lambda-go v1.47.0
 	github.com/aws/aws-sdk-go-v2 v1.30.4
+	github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.43.2
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.34.5
+	github.com/aws/aws-sdk-go-v2/service/sns v1.31.4
 )
 
 require (
