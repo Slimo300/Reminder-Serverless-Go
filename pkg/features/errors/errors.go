@@ -37,3 +37,8 @@ func Internal(err error) (events.APIGatewayProxyResponse, error) {
 func Unauthorized(message string) (events.APIGatewayProxyResponse, error) {
 	return ErrorResponse(message, http.StatusUnauthorized)
 }
+
+// It returns bad request response with given message
+func BadRequest(message string) (events.APIGatewayProxyResponse, error) {
+	return ErrorResponse(message, http.StatusBadRequest)
+}
