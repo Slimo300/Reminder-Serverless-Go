@@ -60,7 +60,7 @@ func (h *Handler) Handle(request events.APIGatewayProxyRequest) (events.APIGatew
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
-	errChan := make(chan error)
+	errChan := make(chan error, 1)
 	defer close(errChan)
 	defer cancel()
 	var wg sync.WaitGroup
@@ -84,7 +84,6 @@ func (h *Handler) Handle(request events.APIGatewayProxyRequest) (events.APIGatew
 				case errChan <- err:
 					cancel()
 				default:
-					return
 				}
 			}
 		}(key)
@@ -108,15 +107,17 @@ func (h *Handler) Handle(request events.APIGatewayProxyRequest) (events.APIGatew
 				case errChan <- err:
 					cancel()
 				default:
-					return
 				}
 			}
 		}(key)
 	}
 
 	wg.Wait()
-	if errors.Is(ctx.Err(), context.Canceled) {
-		return pkgerrors.Internal(<-errChan)
+
+	select {
+	case err := <-errChan:
+		return pkgerrors.Internal(err)
+	default:
 	}
 
 	if _, err := h.DynamoClient.DeleteItem(context.Background(), &dynamodb.DeleteItemInput{
