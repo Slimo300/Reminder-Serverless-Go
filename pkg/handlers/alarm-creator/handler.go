@@ -21,11 +21,6 @@ import (
 	pkgerrors "github.com/Slimo300/Reminder-Serverless-Go/pkg/features/errors"
 )
 
-type ruleEntry struct {
-	RuleID string
-	Value  string
-}
-
 type scheduleType int
 
 const (
@@ -101,6 +96,26 @@ func (h *Handler) createSchedule(ctx context.Context, input createScheduleInput)
 	return nil
 }
 
+type RequestBody struct {
+	Message  string   `json:"message"`
+	Timezone string   `json:"timezone"`
+	Dates    []string `json:"dates"`
+	Crons    []string `json:"crons"`
+}
+
+func (b *RequestBody) Validate() error {
+	if len(b.Crons) == 0 && len(b.Dates) == 0 {
+		return errors.New("there are no crons or dates specified")
+	}
+	if b.Message == "" {
+		return errors.New(`"message" cannot be an empty string`)
+	}
+	if b.Timezone == "" {
+		return errors.New(`"timezone" cannot be an empty string`)
+	}
+	return nil
+}
+
 func (h *Handler) Handle(request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 
 	claims, ok := request.RequestContext.Authorizer["claims"].(map[string]interface{})
@@ -112,42 +127,25 @@ func (h *Handler) Handle(request events.APIGatewayProxyRequest) (events.APIGatew
 		return pkgerrors.Unauthorized("authorization data not found")
 	}
 
-	var reqBody struct {
-		Message  string   `json:"message"`
-		Dates    []string `json:"dates"`
-		Crons    []string `json:"crons"`
-		Timezone string   `json:"timezone"`
-	}
-
+	var reqBody RequestBody
 	if err := json.Unmarshal([]byte(request.Body), &reqBody); err != nil {
 		return pkgerrors.BadRequest("invalid request body")
 	}
+	if err := reqBody.Validate(); err != nil {
+		return pkgerrors.BadRequest(err.Error())
+	}
 
-	dateMap := make(map[string]dynamotypes.AttributeValue)
 	cronMap := make(map[string]dynamotypes.AttributeValue)
+	dateMap := make(map[string]dynamotypes.AttributeValue)
 
-	dateChan := make(chan *ruleEntry)
-	cronChan := make(chan *ruleEntry)
-	errChan := make(chan error)
-	defer close(dateChan)
-	defer close(cronChan)
+	cronMutex := &sync.Mutex{}
+	dateMutex := &sync.Mutex{}
+
+	errChan := make(chan error, 1)
 	defer close(errChan)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	go func() {
-		for {
-			select {
-			case entry := <-dateChan:
-				dateMap[entry.RuleID] = &dynamotypes.AttributeValueMemberS{Value: entry.Value}
-			case entry := <-cronChan:
-				cronMap[entry.RuleID] = &dynamotypes.AttributeValueMemberS{Value: entry.Value}
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
 
 	var wg sync.WaitGroup
 
@@ -167,15 +165,17 @@ func (h *Handler) Handle(request events.APIGatewayProxyRequest) (events.APIGatew
 				Message:            reqBody.Message,
 				Timezone:           reqBody.Timezone,
 			}); err != nil {
-				errChan <- err
-				cancel()
+				select {
+				case errChan <- err:
+					cancel()
+				default:
+				}
+				return
 			}
+			dateMutex.Lock()
+			dateMap[ruleID] = &dynamotypes.AttributeValueMemberS{Value: expr}
+			dateMutex.Unlock()
 
-			// sending entry to dateChan for further handling
-			dateChan <- &ruleEntry{
-				RuleID: ruleID,
-				Value:  expr,
-			}
 		}(date)
 	}
 
@@ -194,15 +194,18 @@ func (h *Handler) Handle(request events.APIGatewayProxyRequest) (events.APIGatew
 				Message:            reqBody.Message,
 				Timezone:           reqBody.Timezone,
 			}); err != nil {
-				errChan <- err
-				cancel()
+				select {
+				case errChan <- err:
+					cancel()
+				default:
+				}
+				return
 			}
 
 			// sending entry to dateChan for further handling
-			cronChan <- &ruleEntry{
-				RuleID: ruleID,
-				Value:  expr,
-			}
+			cronMutex.Lock()
+			cronMap[ruleID] = &dynamotypes.AttributeValueMemberS{Value: expr}
+			cronMutex.Unlock()
 		}(cron)
 	}
 
@@ -210,10 +213,10 @@ func (h *Handler) Handle(request events.APIGatewayProxyRequest) (events.APIGatew
 	// end last goroutine if it wasn't cancelled before
 	wg.Wait()
 
-	if errors.Is(ctx.Err(), context.Canceled) {
-		return pkgerrors.Internal(<-errChan)
-	} else {
-		cancel()
+	select {
+	case err := <-errChan:
+		return pkgerrors.Internal(err)
+	default:
 	}
 
 	item := map[string]dynamotypes.AttributeValue{
