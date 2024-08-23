@@ -2,7 +2,6 @@ package alarmgetter_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -11,19 +10,6 @@ import (
 
 	alarmgetter "github.com/Slimo300/Reminder-Serverless-Go/pkg/handlers/alarm-getter"
 )
-
-var handler *alarmgetter.AlarmGetterHandler
-
-func TestMain(m *testing.M) {
-	handler = &alarmgetter.AlarmGetterHandler{
-		DynamoClient: &mockDynamoDB{
-			users: map[string]bool{
-				"1": true,
-			},
-		},
-	}
-	os.Exit(m.Run())
-}
 
 type mockDynamoDB struct {
 	dynamodb.QueryAPIClient
@@ -49,6 +35,15 @@ func (d *mockDynamoDB) Query(ctx context.Context, in *dynamodb.QueryInput, opts 
 }
 
 func TestHandler(t *testing.T) {
+
+	handler := &alarmgetter.AlarmGetterHandler{
+		DynamoClient: &mockDynamoDB{
+			users: map[string]bool{
+				"1": true,
+			},
+		},
+	}
+
 	testCases := []struct {
 		name               string
 		request            events.APIGatewayProxyRequest

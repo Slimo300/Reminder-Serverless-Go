@@ -95,7 +95,7 @@ func TestHandler(t *testing.T) {
 			expectedStatusCode: 400,
 		},
 		{
-			name: "no message",
+			name: "no timezone",
 			requestBody: alarmcreator.RequestBody{
 				Message:  "some message",
 				Timezone: "",
