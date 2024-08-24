@@ -40,10 +40,10 @@ func (t scheduleType) string() string {
 }
 
 type DynamoApiClient interface {
-	PutItem(context.Context, *dynamodb.PutItemInput) (*dynamodb.PutItemOutput, error)
+	PutItem(context.Context, *dynamodb.PutItemInput, ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
 }
 type SchedulerApiClient interface {
-	CreateSchedule(context.Context, *scheduler.CreateScheduleInput) (*scheduler.CreateScheduleOutput, error)
+	CreateSchedule(context.Context, *scheduler.CreateScheduleInput, ...func(*scheduler.Options)) (*scheduler.CreateScheduleOutput, error)
 }
 
 type Handler struct {

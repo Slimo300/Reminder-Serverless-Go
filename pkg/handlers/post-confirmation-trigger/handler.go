@@ -15,10 +15,10 @@ import (
 )
 
 type SnsApiClient interface {
-	Subscribe(context.Context, *sns.SubscribeInput) (*sns.SubscribeOutput, error)
+	Subscribe(context.Context, *sns.SubscribeInput, ...func(*sns.Options)) (*sns.SubscribeOutput, error)
 }
 type CognitoApiClient interface {
-	AdminUpdateUserAttributes(context.Context, *cognito.AdminUpdateUserAttributesInput) (*cognito.AdminUpdateUserAttributesOutput, error)
+	AdminUpdateUserAttributes(context.Context, *cognito.AdminUpdateUserAttributesInput, ...func(*cognito.Options)) (*cognito.AdminUpdateUserAttributesOutput, error)
 }
 
 type Handler struct {

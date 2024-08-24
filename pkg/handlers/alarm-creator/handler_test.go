@@ -18,7 +18,7 @@ import (
 type mockDynamoDB struct {
 }
 
-func (m *mockDynamoDB) PutItem(ctx context.Context, input *dynamodb.PutItemInput) (*dynamodb.PutItemOutput, error) {
+func (m *mockDynamoDB) PutItem(ctx context.Context, input *dynamodb.PutItemInput, opts ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
 	return nil, nil
 }
 
@@ -33,7 +33,7 @@ type schedulerExecution struct {
 	returnedError error
 }
 
-func (m *mockScheduler) CreateSchedule(ctx context.Context, input *scheduler.CreateScheduleInput) (*scheduler.CreateScheduleOutput, error) {
+func (m *mockScheduler) CreateSchedule(ctx context.Context, input *scheduler.CreateScheduleInput, opts ...func(*scheduler.Options)) (*scheduler.CreateScheduleOutput, error) {
 	m.Lock()
 	executionDetails := m.executionPlanner[m.counter]
 	m.counter++

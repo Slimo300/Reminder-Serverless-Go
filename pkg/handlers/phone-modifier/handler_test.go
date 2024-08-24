@@ -12,13 +12,13 @@ import (
 
 type mockSns struct{}
 
-func (m *mockSns) Publish(context.Context, *sns.PublishInput) (*sns.PublishOutput, error) {
+func (m *mockSns) Publish(context.Context, *sns.PublishInput, ...func(*sns.Options)) (*sns.PublishOutput, error) {
 	return nil, nil
 }
 
 type mockDynamo struct{}
 
-func (m *mockDynamo) PutItem(context.Context, *dynamodb.PutItemInput) (*dynamodb.PutItemOutput, error) {
+func (m *mockDynamo) PutItem(context.Context, *dynamodb.PutItemInput, ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error) {
 	return nil, nil
 }
 

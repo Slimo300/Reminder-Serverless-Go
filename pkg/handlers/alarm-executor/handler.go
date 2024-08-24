@@ -15,7 +15,7 @@ type AlarmEvent struct {
 }
 
 type SnsApiClient interface {
-	Publish(context.Context, *sns.PublishInput) (*sns.PublishOutput, error)
+	Publish(context.Context, *sns.PublishInput, ...func(*sns.Options)) (*sns.PublishOutput, error)
 }
 
 type Handler struct {

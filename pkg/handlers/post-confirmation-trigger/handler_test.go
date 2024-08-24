@@ -15,7 +15,7 @@ import (
 
 type mockSns struct{}
 
-func (m *mockSns) Subscribe(context.Context, *sns.SubscribeInput) (*sns.SubscribeOutput, error) {
+func (m *mockSns) Subscribe(context.Context, *sns.SubscribeInput, ...func(*sns.Options)) (*sns.SubscribeOutput, error) {
 	return &sns.SubscribeOutput{
 		SubscriptionArn: aws.String("some_arn"),
 	}, nil
@@ -23,7 +23,7 @@ func (m *mockSns) Subscribe(context.Context, *sns.SubscribeInput) (*sns.Subscrib
 
 type mockCognito struct{}
 
-func (m *mockCognito) AdminUpdateUserAttributes(context.Context, *cognito.AdminUpdateUserAttributesInput) (*cognito.AdminUpdateUserAttributesOutput, error) {
+func (m *mockCognito) AdminUpdateUserAttributes(context.Context, *cognito.AdminUpdateUserAttributesInput, ...func(*cognito.Options)) (*cognito.AdminUpdateUserAttributesOutput, error) {
 	return nil, nil
 }
 

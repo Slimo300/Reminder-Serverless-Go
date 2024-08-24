@@ -18,15 +18,15 @@ import (
 )
 
 type SnsApiClient interface {
-	Subscribe(context.Context, *sns.SubscribeInput) (*sns.SubscribeOutput, error)
-	Unsubscribe(context.Context, *sns.UnsubscribeInput) (*sns.UnsubscribeOutput, error)
+	Subscribe(context.Context, *sns.SubscribeInput, ...func(*sns.Options)) (*sns.SubscribeOutput, error)
+	Unsubscribe(context.Context, *sns.UnsubscribeInput, ...func(*sns.Options)) (*sns.UnsubscribeOutput, error)
 }
 type DynamoApiClient interface {
-	GetItem(context.Context, *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error)
-	DeleteItem(context.Context, *dynamodb.DeleteItemInput) (*dynamodb.DeleteItemOutput, error)
+	GetItem(context.Context, *dynamodb.GetItemInput, ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error)
+	DeleteItem(context.Context, *dynamodb.DeleteItemInput, ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error)
 }
 type CognitoApiClient interface {
-	AdminUpdateUserAttributes(context.Context, *cognito.AdminUpdateUserAttributesInput) (*cognito.AdminUpdateUserAttributesOutput, error)
+	AdminUpdateUserAttributes(context.Context, *cognito.AdminUpdateUserAttributesInput, ...func(*cognito.Options)) (*cognito.AdminUpdateUserAttributesOutput, error)
 }
 
 type Handler struct {

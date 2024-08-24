@@ -18,10 +18,10 @@ import (
 )
 
 type SnsApiClient interface {
-	Publish(context.Context, *sns.PublishInput) (*sns.PublishOutput, error)
+	Publish(context.Context, *sns.PublishInput, ...func(*sns.Options)) (*sns.PublishOutput, error)
 }
 type DynamoApiClient interface {
-	PutItem(context.Context, *dynamodb.PutItemInput) (*dynamodb.PutItemOutput, error)
+	PutItem(context.Context, *dynamodb.PutItemInput, ...func(*dynamodb.Options)) (*dynamodb.PutItemOutput, error)
 }
 
 type Handler struct {

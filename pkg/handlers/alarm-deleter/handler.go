@@ -19,12 +19,12 @@ import (
 )
 
 type DynamoApiClient interface {
-	GetItem(context.Context, *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error)
-	DeleteItem(context.Context, *dynamodb.DeleteItemInput) (*dynamodb.DeleteBackupOutput, error)
+	GetItem(context.Context, *dynamodb.GetItemInput, ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error)
+	DeleteItem(context.Context, *dynamodb.DeleteItemInput, ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error)
 }
 
 type SchedulerApiClient interface {
-	DeleteSchedule(context.Context, *scheduler.DeleteScheduleInput) (*scheduler.DeleteScheduleOutput, error)
+	DeleteSchedule(context.Context, *scheduler.DeleteScheduleInput, ...func(*scheduler.Options)) (*scheduler.DeleteScheduleOutput, error)
 }
 
 type Handler struct {
@@ -33,7 +33,6 @@ type Handler struct {
 }
 
 func (h *Handler) Handle(request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
-
 	claims, ok := request.RequestContext.Authorizer["claims"].(map[string]interface{})
 	if !ok {
 		return pkgerrors.Unauthorized("authorization data not found")

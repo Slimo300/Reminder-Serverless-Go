@@ -21,13 +21,13 @@ type mockSns struct {
 	UnsubscribeError error
 }
 
-func (m *mockSns) Subscribe(context.Context, *sns.SubscribeInput) (*sns.SubscribeOutput, error) {
+func (m *mockSns) Subscribe(context.Context, *sns.SubscribeInput, ...func(*sns.Options)) (*sns.SubscribeOutput, error) {
 	time.Sleep(time.Second)
 	return &sns.SubscribeOutput{
 		SubscriptionArn: aws.String("some_arn"),
 	}, m.SubscribeError
 }
-func (m *mockSns) Unsubscribe(context.Context, *sns.UnsubscribeInput) (*sns.UnsubscribeOutput, error) {
+func (m *mockSns) Unsubscribe(context.Context, *sns.UnsubscribeInput, ...func(*sns.Options)) (*sns.UnsubscribeOutput, error) {
 	time.Sleep(time.Second)
 	return nil, m.UnsubscribeError
 }
@@ -36,7 +36,7 @@ type mockDynamo struct {
 	DeleteItemError error
 }
 
-func (m *mockDynamo) GetItem(context.Context, *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
+func (m *mockDynamo) GetItem(context.Context, *dynamodb.GetItemInput, ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
 	return &dynamodb.GetItemOutput{
 		Item: map[string]dynamotypes.AttributeValue{
 			"UserID":           &dynamotypes.AttributeValueMemberS{Value: "1"},
@@ -46,7 +46,7 @@ func (m *mockDynamo) GetItem(context.Context, *dynamodb.GetItemInput) (*dynamodb
 		},
 	}, nil
 }
-func (m *mockDynamo) DeleteItem(context.Context, *dynamodb.DeleteItemInput) (*dynamodb.DeleteItemOutput, error) {
+func (m *mockDynamo) DeleteItem(context.Context, *dynamodb.DeleteItemInput, ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
 	time.Sleep(time.Second)
 	return nil, m.DeleteItemError
 }
@@ -55,7 +55,7 @@ type mockCognito struct {
 	AdminUpdateError error
 }
 
-func (m *mockCognito) AdminUpdateUserAttributes(context.Context, *cognito.AdminUpdateUserAttributesInput) (*cognito.AdminUpdateUserAttributesOutput, error) {
+func (m *mockCognito) AdminUpdateUserAttributes(context.Context, *cognito.AdminUpdateUserAttributesInput, ...func(*cognito.Options)) (*cognito.AdminUpdateUserAttributesOutput, error) {
 	time.Sleep(time.Second)
 	return nil, m.AdminUpdateError
 }

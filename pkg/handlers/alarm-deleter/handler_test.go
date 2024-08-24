@@ -17,7 +17,7 @@ import (
 type mockDynamoDB struct {
 }
 
-func (m *mockDynamoDB) GetItem(context.Context, *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error) {
+func (m *mockDynamoDB) GetItem(context.Context, *dynamodb.GetItemInput, ...func(*dynamodb.Options)) (*dynamodb.GetItemOutput, error) {
 	return &dynamodb.GetItemOutput{
 		Item: map[string]dynamotypes.AttributeValue{
 			"Crons": &dynamotypes.AttributeValueMemberM{
@@ -35,7 +35,7 @@ func (m *mockDynamoDB) GetItem(context.Context, *dynamodb.GetItemInput) (*dynamo
 		},
 	}, nil
 }
-func (m *mockDynamoDB) DeleteItem(context.Context, *dynamodb.DeleteItemInput) (*dynamodb.DeleteBackupOutput, error) {
+func (m *mockDynamoDB) DeleteItem(context.Context, *dynamodb.DeleteItemInput, ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
 	return nil, nil
 }
 
@@ -50,7 +50,7 @@ type schedulerExecution struct {
 	returnedError error
 }
 
-func (m *mockScheduler) DeleteSchedule(ctx context.Context, input *scheduler.DeleteScheduleInput) (*scheduler.DeleteScheduleOutput, error) {
+func (m *mockScheduler) DeleteSchedule(context.Context, *scheduler.DeleteScheduleInput, ...func(*scheduler.Options)) (*scheduler.DeleteScheduleOutput, error) {
 	m.Lock()
 	executionDetails := m.executionPlanner[m.counter]
 	m.counter++
