@@ -9,7 +9,7 @@ on:
       - 'reminder.go'
   
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository code
