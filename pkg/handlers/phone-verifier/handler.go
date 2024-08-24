@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"sync"
 
 	"github.com/Slimo300/Reminder-Serverless-Go/pkg/features/errors"
 	"github.com/aws/aws-lambda-go/events"
@@ -22,7 +23,7 @@ type SnsApiClient interface {
 }
 type DynamoApiClient interface {
 	GetItem(context.Context, *dynamodb.GetItemInput) (*dynamodb.GetItemOutput, error)
-	DeleteItem(context.Context, *dynamodb.DeleteItemInput) (*dynamodb.DeleteBackupOutput, error)
+	DeleteItem(context.Context, *dynamodb.DeleteItemInput) (*dynamodb.DeleteItemOutput, error)
 }
 type CognitoApiClient interface {
 	AdminUpdateUserAttributes(context.Context, *cognito.AdminUpdateUserAttributesInput) (*cognito.AdminUpdateUserAttributesOutput, error)
@@ -74,60 +75,112 @@ func (h *Handler) Handle(request events.APIGatewayProxyRequest) (events.APIGatew
 		return errors.Unauthorized("verification code is incorrect")
 	}
 
-	if _, err := h.DynamoClient.DeleteItem(context.Background(), &dynamodb.DeleteItemInput{
-		TableName: aws.String(os.Getenv("DYNAMO_TABLE_NAME")),
-		Key: map[string]dynamotypes.AttributeValue{
-			"UserID": &dynamotypes.AttributeValueMemberS{Value: userID},
-		},
-	}); err != nil {
-		return errors.Internal(err)
-	}
+	errChan := make(chan error, 1)
+	ctx, cancel := context.WithCancel(context.Background())
 
-	if _, err := h.SnsClient.Unsubscribe(context.Background(), &sns.UnsubscribeInput{
-		SubscriptionArn: &subscriptionArn,
-	}); err != nil {
-		return errors.Internal(err)
-	}
+	defer close(errChan)
+	defer cancel()
+	var wg sync.WaitGroup
 
-	filterPolicy, err := json.Marshal(map[string]interface{}{
-		"userID": []string{userID},
-	})
-	if err != nil {
-		return errors.Internal(err)
-	}
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
 
-	subResponse, err := h.SnsClient.Subscribe(context.Background(), &sns.SubscribeInput{
-		TopicArn: aws.String(os.Getenv("SNS_TOPIC_ARN")),
-		Protocol: aws.String("sms"),
-		Endpoint: aws.String(newPhoneNumber),
-		Attributes: map[string]string{
-			"FilterPolicy": string(filterPolicy),
-		},
-		ReturnSubscriptionArn: true,
-	})
-	if err != nil {
-		return errors.Internal(err)
-	}
-
-	if _, err := h.CognitoClient.AdminUpdateUserAttributes(context.Background(), &cognito.AdminUpdateUserAttributesInput{
-		UserPoolId: aws.String(os.Getenv("USER_POOL_ID")),
-		Username:   &userName,
-		UserAttributes: []cognitotypes.AttributeType{
-			{
-				Name:  aws.String("phone_number"),
-				Value: &newPhoneNumber,
+		if _, err := h.DynamoClient.DeleteItem(ctx, &dynamodb.DeleteItemInput{
+			TableName: aws.String(os.Getenv("DYNAMO_TABLE_NAME")),
+			Key: map[string]dynamotypes.AttributeValue{
+				"UserID": &dynamotypes.AttributeValueMemberS{Value: userID},
 			},
-			{
-				Name:  aws.String("phone_number_verified"),
-				Value: aws.String("true"),
+		}); err != nil {
+			select {
+			case errChan <- err:
+				cancel()
+			default:
+			}
+			return
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		if _, err := h.SnsClient.Unsubscribe(ctx, &sns.UnsubscribeInput{
+			SubscriptionArn: &subscriptionArn,
+		}); err != nil {
+			select {
+			case errChan <- err:
+				cancel()
+			default:
+			}
+			return
+		}
+	}()
+
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+
+		filterPolicy, err := json.Marshal(map[string]interface{}{
+			"userID": []string{userID},
+		})
+		if err != nil {
+			select {
+			case errChan <- err:
+				cancel()
+			default:
+				return
+			}
+		}
+
+		subResponse, err := h.SnsClient.Subscribe(ctx, &sns.SubscribeInput{
+			TopicArn: aws.String(os.Getenv("SNS_TOPIC_ARN")),
+			Protocol: aws.String("sms"),
+			Endpoint: aws.String(newPhoneNumber),
+			Attributes: map[string]string{
+				"FilterPolicy": string(filterPolicy),
 			},
-			{
-				Name:  aws.String("custom:subscription_arn"),
-				Value: subResponse.SubscriptionArn,
+			ReturnSubscriptionArn: true,
+		})
+		if err != nil {
+			select {
+			case errChan <- err:
+				cancel()
+			default:
+			}
+			return
+		}
+
+		if _, err := h.CognitoClient.AdminUpdateUserAttributes(ctx, &cognito.AdminUpdateUserAttributesInput{
+			UserPoolId: aws.String(os.Getenv("USER_POOL_ID")),
+			Username:   &userName,
+			UserAttributes: []cognitotypes.AttributeType{
+				{
+					Name:  aws.String("phone_number"),
+					Value: &newPhoneNumber,
+				},
+				{
+					Name:  aws.String("phone_number_verified"),
+					Value: aws.String("true"),
+				},
+				{
+					Name:  aws.String("custom:subscription_arn"),
+					Value: subResponse.SubscriptionArn,
+				},
 			},
-		},
-	}); err != nil {
-		return errors.Internal(err)
+		}); err != nil {
+			select {
+			case errChan <- err:
+				cancel()
+			default:
+			}
+			return
+		}
+	}()
+
+	wg.Wait()
+	if ctx.Err() != nil {
+		return errors.Internal(<-errChan)
 	}
 
 	responseJSON, err := json.Marshal(map[string]string{
