@@ -25,6 +25,14 @@ func NewAlerterStack(scope constructs.Construct, id string, props *AlerterStackP
 	}
 	stack := awscdk.NewStack(scope, &id, &sprops)
 
+	// Lambda bundling options
+	bundlingOptions := &golambda.BundlingOptions{
+		GoBuildFlags: jsii.Strings(`-ldflags "-s -w"`),
+		Environment: &map[string]*string{
+			"CGO_ENABLED": jsii.String("0"),
+		},
+	}
+
 	// Creating an SNS Topic
 
 	snsTopic := awssns.NewTopic(stack, jsii.String("GO_ReminderSnsTopic"), &awssns.TopicProps{
@@ -65,6 +73,7 @@ func NewAlerterStack(scope constructs.Construct, id string, props *AlerterStackP
 		Environment: &map[string]*string{
 			"SNS_TOPIC_ARN": snsTopic.TopicArn(),
 		},
+		Bundling: bundlingOptions,
 	})
 	postConfirmationLambda.Role().AttachInlinePolicy(awsiam.NewPolicy(stack, jsii.String("GO_PostConfirmationTriggerRole"), &awsiam.PolicyProps{
 		Statements: &[]awsiam.PolicyStatement{
@@ -119,6 +128,7 @@ func NewAlerterStack(scope constructs.Construct, id string, props *AlerterStackP
 		Environment: &map[string]*string{
 			"SNS_TOPIC_ARN": snsTopic.TopicArn(),
 		},
+		Bundling: bundlingOptions,
 	})
 	alarmExecutorLambda.AddToRolePolicy(awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
 		Actions:   jsii.Strings("sns:Publish"),
@@ -145,6 +155,7 @@ func NewAlerterStack(scope constructs.Construct, id string, props *AlerterStackP
 			"LAMBDA_FUNCTION_ARN": alarmExecutorLambda.FunctionArn(),
 			"ROLE_ARN":            lambdaExecutorInvokeRole.RoleArn(),
 		},
+		Bundling: bundlingOptions,
 	})
 	alarmCreatorLambda.AddToRolePolicy(awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
 		Actions:   jsii.Strings("dynamodb:PutItem"),
@@ -168,6 +179,7 @@ func NewAlerterStack(scope constructs.Construct, id string, props *AlerterStackP
 		Environment: &map[string]*string{
 			"DYNAMO_TABLE_NAME": alarmsTable.TableName(),
 		},
+		Bundling: bundlingOptions,
 	})
 	alarmGetterLambda.AddToRolePolicy(awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
 		Actions:   jsii.Strings("dynamodb:Query"),
@@ -183,6 +195,7 @@ func NewAlerterStack(scope constructs.Construct, id string, props *AlerterStackP
 		Environment: &map[string]*string{
 			"DYNAMO_TABLE_NAME": alarmsTable.TableName(),
 		},
+		Bundling: bundlingOptions,
 	})
 	alarmDeleterLambda.AddToRolePolicy(awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
 		Actions:   jsii.Strings("dynamodb:GetItem", "dynamodb:DeleteItem"),
@@ -202,6 +215,7 @@ func NewAlerterStack(scope constructs.Construct, id string, props *AlerterStackP
 		Environment: &map[string]*string{
 			"DYNAMO_TABLE_NAME": codesTable.TableArn(),
 		},
+		Bundling: bundlingOptions,
 	})
 	phoneModifierLambda.AddToRolePolicy(awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
 		Actions:   jsii.Strings("dynamodb:PutItem"),
@@ -223,6 +237,7 @@ func NewAlerterStack(scope constructs.Construct, id string, props *AlerterStackP
 			"SNS_TOPIC_ARN":     snsTopic.TopicArn(),
 			"USER_POOL_ID":      userPool.UserPoolId(),
 		},
+		Bundling: bundlingOptions,
 	})
 	phoneVerifierLambda.AddToRolePolicy(awsiam.NewPolicyStatement(&awsiam.PolicyStatementProps{
 		Actions:   jsii.Strings("dynamodb:GetItem", "dynamodb:DeleteItem"),
