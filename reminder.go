@@ -196,7 +196,7 @@ func NewAlerterStack(scope constructs.Construct, id string, props *AlerterStackP
 	// Phone Number Modifier Function
 	phoneModifierLambda := golambda.NewGoFunction(stack, jsii.String("GO_PhoneModifier"), &golambda.GoFunctionProps{
 		FunctionName: jsii.String("GO_PhoneModifier"),
-		Entry:        jsii.String("lambdas/phone-modifer"),
+		Entry:        jsii.String("lambdas/phone-modifier"),
 		Runtime:      awslambda.Runtime_PROVIDED_AL2(),
 		Architecture: awslambda.Architecture_ARM_64(),
 		Environment: &map[string]*string{
