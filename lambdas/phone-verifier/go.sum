@@ -1,3 +1,7 @@
+github.com/Slimo300/Reminder-Serverless-Go/pkg/features/errors v0.0.0-20240821145950-d2da7dbd1a33 h1:ge4fRZrFliUPC4fQ9kvSwPqUMYTVErStwvpmeM0ld4A=
+github.com/Slimo300/Reminder-Serverless-Go/pkg/features/errors v0.0.0-20240821145950-d2da7dbd1a33/go.mod h1:IV6Wt1TLRyjUNNFvVUSdLpPeaMjeXNyIrcbJUs9OVOQ=
+github.com/Slimo300/Reminder-Serverless-Go/pkg/handlers/phone-verifier v0.0.0-20240824160752-4e7921ee5bb6 h1:2nU7uJx4rBevjLfcdeNVEHSMVKR0Ltegc+eHajcCBsY=
+github.com/Slimo300/Reminder-Serverless-Go/pkg/handlers/phone-verifier v0.0.0-20240824160752-4e7921ee5bb6/go.mod h1:DFNi/EZV5acGxSCJ/L2dOdTp5GkKuAWJcILYGMv6psE=
 github.com/aws/aws-lambda-go v1.47.0 h1:0H8s0vumYx/YKs4sE7YM0ktwL2eWse+kfopsRI1sXVI=
 github.com/aws/aws-lambda-go v1.47.0/go.mod h1:dpMpZgvWx5vuQJfBt0zqBha60q7Dd7RfgJv23DymV8A=
 github.com/aws/aws-sdk-go-v2 v1.30.4 h1:frhcagrVNrzmT95RJImMHgabt99vkXGslubDaDagTk8=
