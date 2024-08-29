@@ -1,6 +1,6 @@
 # Reminder-Serverless-Go
 
-## This is a serverless app build entirely on AWS with Go language
+## This is a serverless app build entirely on AWS with Go language on backend and React on frontend.
 
 The main goal of this application is to send SMS reminders about events, duties and all the stuff we tend to forget. Application supports both one time events and cyclic events of which you can have as many as you need for one topic/event/reminder.
 
