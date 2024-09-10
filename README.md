@@ -24,11 +24,11 @@ Application is build with AWS CDK so to run it you need to:
 - have AWS CDK installed
 ```console
 foo@bar:~$ npm install -g aws-cdk
-...
+```
 
 When you have your AWS keys in place (either in environment variables or in ~/.aws/credentials file), and CDK installed, just run:
 ```console
 foo@bar:~$ cdk deploy
-...
+```
 
 For now frontend code is not deployed with application to AWS, although there is possibility to deploy it to S3 as static site or to deploy it with AWS Amplify.
