@@ -35,7 +35,6 @@ func (d *mockDynamoDB) Query(ctx context.Context, in *dynamodb.QueryInput, opts 
 }
 
 func TestHandler(t *testing.T) {
-
 	handler := &alarmgetter.AlarmGetterHandler{
 		DynamoClient: &mockDynamoDB{
 			users: map[string]bool{
@@ -51,7 +50,6 @@ func TestHandler(t *testing.T) {
 		expectedStatusCode int
 	}{
 		{
-			// mock a request with an empty SourceIP
 			name: "no authorizer",
 			request: events.APIGatewayProxyRequest{
 				RequestContext: events.APIGatewayProxyRequestContext{},
@@ -60,7 +58,6 @@ func TestHandler(t *testing.T) {
 			expectedStatusCode: 401,
 		},
 		{
-			// mock a request with an empty SourceIP
 			name: "no sub",
 			request: events.APIGatewayProxyRequest{
 				RequestContext: events.APIGatewayProxyRequestContext{
@@ -104,12 +101,10 @@ func TestHandler(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-
 			response, _ := handler.Handle(testCase.request)
 			if response.Body != testCase.expectedBody {
 				t.Errorf("Expected response %v, but got %v", testCase.expectedBody, response.Body)
 			}
-
 			if response.StatusCode != testCase.expectedStatusCode {
 				t.Errorf("Expected status code 200, but got %v", response.StatusCode)
 			}

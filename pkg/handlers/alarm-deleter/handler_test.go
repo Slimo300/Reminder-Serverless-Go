@@ -5,7 +5,6 @@ import (
 	"errors"
 	"sync"
 	"testing"
-	"time"
 
 	alarmdeleter "github.com/Slimo300/Reminder-Serverless-Go/pkg/handlers/alarm-deleter"
 	"github.com/aws/aws-lambda-go/events"
@@ -41,34 +40,32 @@ func (m *mockDynamoDB) DeleteItem(context.Context, *dynamodb.DeleteItemInput, ..
 
 type mockScheduler struct {
 	*sync.Mutex
-	counter          int
-	executionPlanner []schedulerExecution
+	counter   int
+	failureAt int
 }
 
-type schedulerExecution struct {
-	executionTime time.Duration
-	returnedError error
-}
-
-func (m *mockScheduler) DeleteSchedule(context.Context, *scheduler.DeleteScheduleInput, ...func(*scheduler.Options)) (*scheduler.DeleteScheduleOutput, error) {
+func (m *mockScheduler) DeleteSchedule(ctx context.Context, input *scheduler.DeleteScheduleInput, opts ...func(*scheduler.Options)) (*scheduler.DeleteScheduleOutput, error) {
 	m.Lock()
-	executionDetails := m.executionPlanner[m.counter]
 	m.counter++
 	m.Unlock()
 
-	time.Sleep(executionDetails.executionTime)
-	return nil, executionDetails.returnedError
+	if ctx.Err() != nil {
+		return nil, context.Canceled
+	}
+	if m.counter == m.failureAt {
+		return nil, errors.New("some error")
+	}
+	return nil, nil
 }
 
 func TestHandler(t *testing.T) {
-
 	testCases := []struct {
 		name               string
 		request            events.APIGatewayProxyRequest
 		expectedBody       string
 		expectedStatusCode int
 		returnResult       bool
-		executionDetails   []schedulerExecution
+		failureAt          int
 	}{
 		{
 			name: "no authorizer",
@@ -118,25 +115,8 @@ func TestHandler(t *testing.T) {
 					},
 				},
 			},
-			expectedBody: `{"message":"internal server error"}`,
-			executionDetails: []schedulerExecution{
-				{
-					executionTime: 1 * time.Second,
-					returnedError: errors.New("some error"),
-				},
-				{
-					executionTime: 2 * time.Second,
-					returnedError: nil,
-				},
-				{
-					executionTime: 2 * time.Second,
-					returnedError: nil,
-				},
-				{
-					executionTime: 2 * time.Second,
-					returnedError: nil,
-				},
-			},
+			expectedBody:       `{"message":"internal server error"}`,
+			failureAt:          1,
 			returnResult:       true,
 			expectedStatusCode: 500,
 		}, {
@@ -153,25 +133,8 @@ func TestHandler(t *testing.T) {
 					},
 				},
 			},
-			expectedBody: `{"message":"internal server error"}`,
-			executionDetails: []schedulerExecution{
-				{
-					executionTime: 2 * time.Second,
-					returnedError: errors.New("some error"),
-				},
-				{
-					executionTime: 1 * time.Second,
-					returnedError: nil,
-				},
-				{
-					executionTime: 3 * time.Second,
-					returnedError: nil,
-				},
-				{
-					executionTime: 3 * time.Second,
-					returnedError: nil,
-				},
-			},
+			expectedBody:       `{"message":"internal server error"}`,
+			failureAt:          2,
 			returnResult:       true,
 			expectedStatusCode: 500,
 		},
@@ -189,25 +152,8 @@ func TestHandler(t *testing.T) {
 					},
 				},
 			},
-			expectedBody: `{"message":"internal server error"}`,
-			executionDetails: []schedulerExecution{
-				{
-					executionTime: 2 * time.Second,
-					returnedError: errors.New("some error"),
-				},
-				{
-					executionTime: 1 * time.Second,
-					returnedError: nil,
-				},
-				{
-					executionTime: 1 * time.Second,
-					returnedError: nil,
-				},
-				{
-					executionTime: 1 * time.Second,
-					returnedError: nil,
-				},
-			},
+			expectedBody:       `{"message":"internal server error"}`,
+			failureAt:          4,
 			returnResult:       true,
 			expectedStatusCode: 500,
 		},
@@ -225,25 +171,8 @@ func TestHandler(t *testing.T) {
 					},
 				},
 			},
-			expectedBody: `{"message":"ok"}`,
-			executionDetails: []schedulerExecution{
-				{
-					executionTime: 1 * time.Second,
-					returnedError: nil,
-				},
-				{
-					executionTime: 1 * time.Second,
-					returnedError: nil,
-				},
-				{
-					executionTime: 1 * time.Second,
-					returnedError: nil,
-				},
-				{
-					executionTime: 1 * time.Second,
-					returnedError: nil,
-				},
-			},
+			expectedBody:       `{"message":"ok"}`,
+			failureAt:          0,
 			returnResult:       true,
 			expectedStatusCode: 200,
 		},
@@ -251,17 +180,14 @@ func TestHandler(t *testing.T) {
 
 	for _, testCase := range testCases {
 		t.Run(testCase.name, func(t *testing.T) {
-
 			handler := alarmdeleter.Handler{
 				DynamoClient:    &mockDynamoDB{},
-				SchedulerClient: &mockScheduler{executionPlanner: testCase.executionDetails, Mutex: &sync.Mutex{}},
+				SchedulerClient: &mockScheduler{failureAt: testCase.failureAt, Mutex: &sync.Mutex{}},
 			}
-
 			response, _ := handler.Handle(testCase.request)
 			if response.Body != testCase.expectedBody {
 				t.Errorf("Expected response %v, but got %v", testCase.expectedBody, response.Body)
 			}
-
 			if response.StatusCode != testCase.expectedStatusCode {
 				t.Errorf("Expected status code %v, but got %v", testCase.expectedStatusCode, response.StatusCode)
 			}

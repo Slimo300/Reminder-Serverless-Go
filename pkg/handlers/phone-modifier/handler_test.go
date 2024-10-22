@@ -23,7 +23,6 @@ func (m *mockDynamo) PutItem(context.Context, *dynamodb.PutItemInput, ...func(*d
 }
 
 func TestHandler(t *testing.T) {
-
 	handler := phonemodifier.Handler{
 		DynamoClient: &mockDynamo{},
 		SnsClient:    &mockSns{},

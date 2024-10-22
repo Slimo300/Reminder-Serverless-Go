@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"testing"
-	"time"
 
 	phoneverifier "github.com/Slimo300/Reminder-Serverless-Go/pkg/handlers/phone-verifier"
 
@@ -22,13 +21,11 @@ type mockSns struct {
 }
 
 func (m *mockSns) Subscribe(context.Context, *sns.SubscribeInput, ...func(*sns.Options)) (*sns.SubscribeOutput, error) {
-	time.Sleep(time.Second)
 	return &sns.SubscribeOutput{
 		SubscriptionArn: aws.String("some_arn"),
 	}, m.SubscribeError
 }
 func (m *mockSns) Unsubscribe(context.Context, *sns.UnsubscribeInput, ...func(*sns.Options)) (*sns.UnsubscribeOutput, error) {
-	time.Sleep(time.Second)
 	return nil, m.UnsubscribeError
 }
 
@@ -47,7 +44,6 @@ func (m *mockDynamo) GetItem(context.Context, *dynamodb.GetItemInput, ...func(*d
 	}, nil
 }
 func (m *mockDynamo) DeleteItem(context.Context, *dynamodb.DeleteItemInput, ...func(*dynamodb.Options)) (*dynamodb.DeleteItemOutput, error) {
-	time.Sleep(time.Second)
 	return nil, m.DeleteItemError
 }
 
@@ -56,12 +52,10 @@ type mockCognito struct {
 }
 
 func (m *mockCognito) AdminUpdateUserAttributes(context.Context, *cognito.AdminUpdateUserAttributesInput, ...func(*cognito.Options)) (*cognito.AdminUpdateUserAttributesOutput, error) {
-	time.Sleep(time.Second)
 	return nil, m.AdminUpdateError
 }
 
 func TestHandler(t *testing.T) {
-
 	testCases := []struct {
 		name               string
 		request            events.APIGatewayProxyRequest
@@ -225,7 +219,6 @@ func TestHandler(t *testing.T) {
 
 	for _, tC := range testCases {
 		t.Run(tC.name, func(t *testing.T) {
-
 			handler := phoneverifier.Handler{
 				DynamoClient:  &mockDynamo{DeleteItemError: tC.deleteItemError},
 				SnsClient:     &mockSns{SubscribeError: tC.subscribeError, UnsubscribeError: tC.unsubscribeError},

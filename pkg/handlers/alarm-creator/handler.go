@@ -150,7 +150,6 @@ func (h *Handler) Handle(request events.APIGatewayProxyRequest) (events.APIGatew
 	var wg sync.WaitGroup
 
 	for _, date := range reqBody.Dates {
-
 		wg.Add(1)
 		go func(expr string) {
 			defer wg.Done()

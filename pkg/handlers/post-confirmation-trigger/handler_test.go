@@ -108,7 +108,6 @@ func TestHandler(t *testing.T) {
 			if !reflect.DeepEqual(res, tC.expectedResult) {
 				t.Errorf("Response received: %v is different than expected: %v", res, tC.expectedResult)
 			}
-
 			if tC.returnErr && tC.expectedError.Error() != err.Error() {
 				t.Errorf("Error received: %v is different than expected: %v", err, tC.expectedError)
 			}
